@@ -1,5 +1,5 @@
-#ifndef INC_FATFS_SD_H_
-#define INC_FATFS_SD_H_
+#ifndef __FATFS_SD_H
+#define __FATFS_SD_H
 
 /* Definitions for MMC/SDC command */
 #define CMD0     (0x40+0)     	/* GO_IDLE_STATE */
@@ -39,4 +39,4 @@ extern SPI_HandleTypeDef 	hspi1;
 #define	SD_CS_PORT			GPIOA
 #define SD_CS_PIN			GPIO_PIN_4
 
-#endif /* INC_FATFS_SD_H_ */
+#endif

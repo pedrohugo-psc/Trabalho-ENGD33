@@ -1,8 +1,8 @@
 /*
- * sd_card.c
+ * SDcard.h
  *
- *  Created on: Aug 10, 2024
- *      Author: Bianca, Pedro Hugo e Fredson
+ *  Created on: Ago 10, 2024
+ *      Author: Bianca, Fredson e Pedro Hugo
  */
 
 #include <stdio.h>
@@ -11,22 +11,23 @@
 #include "main.h"
 #include "queue.h"
 #include "fatfs.h"
+#include "fatfs_sd.h"
 #include <stdbool.h>
-#include "sd_card.h"
+#include "SDcard.h"
 
 static FATFS fs;
 static FIL fil;
 
 SemaphoreHandle_t print_smpr_handle;
-static TaskHandle_t sd_card_task_handle = NULL;
-static QueueHandle_t sd_card_queue_handle = NULL;
+static TaskHandle_t SDcard_task_handle = NULL;
+static QueueHandle_t SDcard_queue_handle = NULL;
 
-TaskHandle_t sd_Card_get_task_handle(void){
-	return sd_card_task_handle;
+TaskHandle_t SDCard_get_task_handle(void){
+	return SDcard_task_handle;
 }
 
-QueueHandle_t sd_card_get_queue_handle(void){
-	return sd_card_queue_handle;
+QueueHandle_t SDcard_get_queue_handle(void){
+	return SDcard_queue_handle;
 }
 
 static bool path_select(char* path, size_t buff_size, data_type_t data_type){
@@ -124,13 +125,13 @@ static bool reset_files(void){
 	return true;
 }
 
-static void sd_card_task(void* arg){
-	sd_data_t data = {0};
+static void SDcard_task(void* arg){
+	SD_data_t data = {0};
 	char buffer[100];
 	char path[50];
 	int er = 0;
 	for(;;){
-		if(xQueueReceive(sd_card_queue_handle, &data, portMAX_DELAY) != pdTRUE){
+		if(xQueueReceive(SDcard_queue_handle, &data, portMAX_DELAY) != pdTRUE){
 			USB_PRINT("error receive from queue\n");
 			continue;
 		}
@@ -189,9 +190,9 @@ static void sd_card_task(void* arg){
 	}
 }
 
-int sd_card_start(void){
+int SDcard_start(void){
 	print_smpr_handle = xSemaphoreCreateBinary();
-	sd_card_queue_handle = xQueueCreate(20, sizeof(sd_data_t));
+	SDcard_queue_handle = xQueueCreate(20, sizeof(SD_data_t));
 	if(f_mount(&fs, "", 0) != FR_OK){
 		USB_PRINT("fail mount sd card\n");
 		return false;
@@ -200,7 +201,8 @@ int sd_card_start(void){
 		USB_PRINT("fail reseting files\n");
 		return false;
 	}
-	if(xTaskCreate(sd_card_task, "sd_card_task", 128*5, NULL, 26, NULL) != pdPASS) return false;
+	if(xTaskCreate(SDcard_task, "SDcard_task", 128*5, NULL, 26, NULL) != pdPASS) return false;
 	return true;
 }
+
 
