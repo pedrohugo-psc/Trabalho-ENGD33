@@ -15,7 +15,7 @@
 
 extern SemaphoreHandle_t print_smpr_handle;
 
-typedef enum{
+typedef enum data_type{
 	CORRENTE,
 	VEL_ANG_MOTOR,
 	ACEL_LIN,
@@ -36,7 +36,7 @@ typedef enum{
 	NumberOfTypes,
 } data_type_t;
 
-typedef struct{
+typedef struct SD_data{
 	int32_t value[3];
 	data_type_t data_type;
 	TickType_t timestamp;

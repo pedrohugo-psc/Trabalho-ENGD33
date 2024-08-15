@@ -1,0 +1,4 @@
+../Core/Src/freertos.c:81:6:MX_FREERTOS_Init	8	static
+../Core/Src/freertos.c:123:6:StartDefaultTask	16	static
+../Core/Src/freertos.c:149:6:send_data	104	static
+../Core/Src/freertos.c:188:13:start_send_data_tasks	56	static

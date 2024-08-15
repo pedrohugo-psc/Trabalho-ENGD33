@@ -1,0 +1,6 @@
+../Core/Src/SDcard.c:25:14:SDCard_get_task_handle	4	static
+../Core/Src/SDcard.c:29:15:SDcard_get_queue_handle	4	static
+../Core/Src/SDcard.c:33:13:path_select	32	static
+../Core/Src/SDcard.c:98:13:reset_files	168	static
+../Core/Src/SDcard.c:128:13:SDcard_task	208	static
+../Core/Src/SDcard.c:193:5:SDcard_start	16	static
