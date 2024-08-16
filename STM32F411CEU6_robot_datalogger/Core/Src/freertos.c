@@ -53,6 +53,13 @@ static const data_type_t three_10[] = {ACEL_LIN, VEL_ANG_GIRO, CAMPO_MAG, G_CTRL
 static const data_type_t three_100[] = {GPS, G_CTRL_POSI};
 static const data_type_t three_ap[] = {G_CTRL_TRACAO_RX, G_CTRL_VEL_RX, G_CTRL_POSI_RX};
 
+typedef struct {
+    uint8_t data_size;
+    uint8_t period_ms;
+    data_type_t type;
+    uint8_t is_periodic;
+} task_data_t;
+
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -159,29 +166,14 @@ void StartDefaultTask(void *argument)
  * de período, tipo de dado, e tamanho do array.
  */
 void send_data(void* arg) {
-    uint32_t settings_in_bits = (uint32_t)arg; // Configurações passadas como argumento
+    task_data_t task_data = *((task_data_t*)arg); // Dados da tarefa
+
     QueueHandle_t SDcard_queue = SDcard_get_queue_handle(); // Obtém o handle da fila SD card
-    uint16_t period_ms = 0;  // Período de envio em milissegundos
-    uint8_t array_size = 0;  // Tamanho do array de valores (1 ou 3)
-    data_type_t type = 0;    // Tipo de dado a ser enviado
     char buf[35];            // Buffer para mensagens de erro
     int n = 0;               // Contador de iterações
 
-    // Determina o tamanho do array com base no bit mais significativo (31º bit) de settings_in_bits
-    if (settings_in_bits >> 31) {
-        array_size = 3;
-    } else {
-        array_size = 1;
-    }
-
-    // Extrai o período em milissegundos dos bits 16 a 30 de settings_in_bits
-    period_ms = (settings_in_bits << 1) >> 16;
-
-    // Extrai o tipo de dado dos bits 0 a 15 de settings_in_bits
-    type = (settings_in_bits << 16) >> 16;
-
     // Inicializa o gerador de números aleatórios com base no tipo de dado
-    srand(type);
+    srand(task_data.type);
 
     // Armazena o tempo atual para uso em delays periódicos
     TickType_t LastWakeTime = xTaskGetTickCount();
@@ -190,14 +182,17 @@ void send_data(void* arg) {
         if (n == 3) break; // Limita a execução a 3 iterações
 
         // Atraso periódico baseado no período em milissegundos
-        vTaskDelayUntil(&LastWakeTime, pdMS_TO_TICKS(period_ms));
+        if (task_data.is_periodic)
+          vTaskDelayUntil(&LastWakeTime, pdMS_TO_TICKS(task_data.period_ms));
+        else // random delay
+          vTaskDelayUntil(&LastWakeTime, pdMS_TO_TICKS(rand() % 1000));
 
         // Cria a estrutura de dados a ser enviada
         SD_data_t data = {
             .value = {rand() % 100, rand() % 100, rand() % 100}, // Valores aleatórios
-            .data_type = type, // Tipo de dado
+            .data_type = task_data.type, // Tipo de dado
             .timestamp = LastWakeTime, // Timestamp da última execução
-            .array_size = array_size, // Tamanho do array de valores
+            .array_size = task_data.data_size, // Tamanho do array de valores
         };
 
         // Envia os dados para a fila da tarefa SD card
@@ -228,74 +223,86 @@ static bool start_send_data_tasks(void) {
     BaseType_t ret = pdTRUE;
     uint32_t settings_in_bits = 0UL;
 
+    task_data_t task_data = {
+        .data_size = 0,
+        .period_ms = 0,
+        .type = 0,
+        .is_periodic = 1,
+    };
+
     // Configuração para tarefas com array de 1 elemento e período de 1 ms
-    settings_in_bits = 0 << 31; // 1 elemento no array
-    settings_in_bits += 1 << 15; // Período de 1 ms
     for (int i = 0; i < sizeof(one_1)/sizeof(one_1[0]); i++) {
-        settings_in_bits += one_1[i]; // Tipo de dado
-        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
+        task_data.data_size = 1;
+        task_data.period_ms = 1;
+        task_data.type = one_1[i];
+        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)task_data, 25, NULL);
         if (ret != pdPASS) return false; // Falha na criação da tarefa
-        settings_in_bits = (settings_in_bits >> 15) << 15; // Reset dos bits menos significativos
     }
 
     // Configuração para tarefas com array de 1 elemento e período de 10 ms
-    settings_in_bits = 0 << 31; // 1 elemento no array
-    settings_in_bits += 10 << 15; // Período de 10 ms
     for (int i = 0; i < sizeof(one_10)/sizeof(one_10[0]); i++) {
-        settings_in_bits += one_10[i]; // Tipo de dado
-        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
+        task_data.data_size = 1;
+        task_data.period_ms = 10;
+        task_data.type = one_10[i];
+
+        ret = xTaskCreate(send_data, "send_data", 128*2, (void*) task_data, 25, NULL);
         if (ret != pdPASS) return false; // Falha na criação da tarefa
-        settings_in_bits = (settings_in_bits >> 15) << 15; // Reset dos bits menos significativos
     }
 
     // Configuração para tarefas com array de 1 elemento e período de 100 ms
     settings_in_bits = 0 << 31; // 1 elemento no array
     settings_in_bits += 100 << 15; // Período de 100 ms
     for (int i = 0; i < sizeof(one_100)/sizeof(one_100[0]); i++) {
-        settings_in_bits += one_100[i]; // Tipo de dado
-        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
+        task_data.data_size = 1;
+        task_data.period_ms = 100;
+        task_data.type = one_100[i];
+
+        ret = xTaskCreate(send_data, "send_data", 128*2, (void*) task_data, 25, NULL);
         if (ret != pdPASS) return false; // Falha na criação da tarefa
-        settings_in_bits = (settings_in_bits >> 15) << 15; // Reset dos bits menos significativos
     }
 
     // Configuração para tarefas com array de 3 elementos e período de 1 ms
-    settings_in_bits = 1 << 31; // 3 elementos no array
-    settings_in_bits += 1 << 15; // Período de 1 ms
     for (int i = 0; i < sizeof(three_1)/sizeof(three_1[0]); i++) {
-        settings_in_bits += three_1[i]; // Tipo de dado
-        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
+        task_data.data_size = 3;
+        task_data.period_ms = 1;
+        task_data.type = three_1[i];
+
+        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)task_data, 25, NULL);
         if (ret != pdPASS) return false; // Falha na criação da tarefa
-        settings_in_bits = (settings_in_bits >> 15) << 15; // Reset dos bits menos significativos
     }
 
     // Configuração para tarefas com array de 3 elementos e período de 10 ms
-    settings_in_bits = 1 << 31; // 3 elementos no array
-    settings_in_bits += 10 << 15; // Período de 10 ms
     for (int i = 0; i < sizeof(three_10)/sizeof(three_10[0]); i++) {
-        settings_in_bits += three_10[i]; // Tipo de dado
-        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
+        task_data.data_size = 3;
+        task_data.period_ms = 10;
+        task_data.type = three_10[i];
+
+        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)task_data, 25, NULL);
+        
         if (ret != pdPASS) return false; // Falha na criação da tarefa
-        settings_in_bits = (settings_in_bits >> 15) << 15; // Reset dos bits menos significativos
     }
 
     // Configuração para tarefas com array de 3 elementos e período de 100 ms
-    settings_in_bits = 1 << 31; // 3 elementos no array
-    settings_in_bits += 100 << 15; // Período de 100 ms
     for (int i = 0; i < sizeof(three_100)/sizeof(three_100[0]); i++) {
-        settings_in_bits += three_100[i]; // Tipo de dado
-        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
+        task_data.data_size = 3;
+        task_data.period_ms = 100;
+        task_data.type = three_100[i];
+
+        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)task_data, 25, NULL);
+        
         if (ret != pdPASS) return false; // Falha na criação da tarefa
-        settings_in_bits = (settings_in_bits >> 15) << 15; // Reset dos bits menos significativos
     }
 
     // Configuração para tarefas com array de 3 elementos e período aleatório (até 1000 ms)
-    settings_in_bits = 1 << 31; // 3 elementos no array
-    settings_in_bits += rand() % 1000 << 15; // Período aleatório em ms
     for (int i = 0; i < sizeof(three_ap)/sizeof(three_ap[0]); i++) {
-        settings_in_bits += three_ap[i]; // Tipo de dado
-        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
+        task_data.data_size = 3;
+        task_data.period_ms = rand() % 1000;
+        task_data.type = three_ap[i];
+        task_data.is_periodic = 0;
+
+        ret = xTaskCreate(send_data, "send_data", 128*2, (void*)task_data, 25, NULL);
+        
         if (ret != pdPASS) return false; // Falha na criação da tarefa
-        settings_in_bits = (settings_in_bits >> 15) << 15; // Reset dos bits menos significativos
     }
 
     return true; // Todas as tarefas foram criadas com sucesso
