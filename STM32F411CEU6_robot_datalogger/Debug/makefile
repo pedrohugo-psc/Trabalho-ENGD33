@@ -72,8 +72,8 @@ all: main-build
 main-build: STM32F411CEU6_robot_datalogger.elf secondary-outputs
 
 # Tool invocations
-STM32F411CEU6_robot_datalogger.elf STM32F411CEU6_robot_datalogger.map: $(OBJS) $(USER_OBJS) D:\STM32_ws\STM32F411CEU6_robot_datalogger\STM32F411CEUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "STM32F411CEU6_robot_datalogger.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"D:\STM32_ws\STM32F411CEU6_robot_datalogger\STM32F411CEUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="STM32F411CEU6_robot_datalogger.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+STM32F411CEU6_robot_datalogger.elf STM32F411CEU6_robot_datalogger.map: $(OBJS) $(USER_OBJS) F:\Desktop\Faculdade\Tempo\ Real\ Engenharia\Trabalho-ENGD33\STM32F411CEU6_robot_datalogger\STM32F411CEUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "STM32F411CEU6_robot_datalogger.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"F:\Desktop\Faculdade\Tempo Real Engenharia\Trabalho-ENGD33\STM32F411CEU6_robot_datalogger\STM32F411CEUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="STM32F411CEU6_robot_datalogger.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

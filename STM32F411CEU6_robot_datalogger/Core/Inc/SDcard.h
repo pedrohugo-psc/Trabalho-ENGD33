@@ -43,6 +43,13 @@ typedef struct SD_data{
 	uint8_t array_size;
 } SD_data_t;
 
+typedef struct {
+    data_type_t type;
+    uint8_t dimensions;
+    uint8_t data_quantity;
+    uint16_t period_ms; // 0 se for aperiódico.
+} DataParameter;
+
 /**
  * @brief Inicia a task e a queue de escrever no SDcard.
  *

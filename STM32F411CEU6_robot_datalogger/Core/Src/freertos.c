@@ -45,14 +45,25 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-static const data_type_t one_1[] = {CORRENTE, A_CTRL_TRACAO};
-static const data_type_t one_10[] = {VEL_ANG_MOTOR, A_CTRL_VEL, S_POINT_VEL};
-static const data_type_t one_100[] = {A_CTRL_POSI};
-static const data_type_t three_1[] = {G_CTRL_TRACAO};
-static const data_type_t three_10[] = {ACEL_LIN, VEL_ANG_GIRO, CAMPO_MAG, G_CTRL_VEL, ANG_ROT_BASE};
-static const data_type_t three_100[] = {GPS, G_CTRL_POSI};
-static const data_type_t three_ap[] = {G_CTRL_TRACAO_RX, G_CTRL_VEL_RX, G_CTRL_POSI_RX};
-
+DataParameter data_parameters[] = {
+    {CORRENTE, 1, 3, 1},
+    {VEL_ANG_MOTOR, 1, 3, 10},
+    {ACEL_LIN, 3, 3, 10},
+    {VEL_ANG_GIRO, 3, 3, 10},
+    {CAMPO_MAG, 3, 3, 10},
+    {A_CTRL_TRACAO, 1, 3, 1},
+    {G_CTRL_TRACAO, 3, 9, 1},
+    {G_CTRL_TRACAO_RX, 3, 9, 0},
+    {A_CTRL_VEL, 1, 3, 10},
+    {S_POINT_VEL, 1, 3, 10},
+    {G_CTRL_VEL, 3, 9, 10},
+    {G_CTRL_VEL_RX, 3, 9, 0},
+    {ANG_ROT_BASE, 3, 3, 10},
+    {GPS, 3, 3, 100},
+    {A_CTRL_POSI, 1, 3, 100},
+    {G_CTRL_POSI, 3, 3, 100},
+    {G_CTRL_POSI_RX, 3, 3, 0}
+};
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -147,37 +158,38 @@ void StartDefaultTask(void *argument)
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 void send_data(void* arg){
-	uint32_t settings_in_bits = (uint32_t)arg;
+	DataParameter *params = (DataParameter *)arg;
 	QueueHandle_t SDcard_queue = SDcard_get_queue_handle();
-	uint16_t period_ms = 0;
-	uint8_t array_size = 0;
-	data_type_t type = 0;
-	char buf [35];
+	uint16_t period_ms = params->period_ms;
+	uint8_t array_size = (params->dimensions == 3) ? 3 : 1;
+	uint8_t data_quantity = params->data_quantity;
+	data_type_t type = params->type;
+	char buf[35];
 	int n = 0;
+	int i;
 
-	if(settings_in_bits>>31){
-		array_size = 3;
-	} else {
-		array_size = 1;
-	}
-
-	period_ms = (settings_in_bits<<1)>>16;
-	type = (settings_in_bits<<16)>>16;
 	srand(type);
 	TickType_t LastWakeTime = xTaskGetTickCount();
-	for(;;){
-		if(n == 3) break;
-		vTaskDelayUntil(&LastWakeTime, pdMS_TO_TICKS(period_ms));
+
+	for (;;) {
+		if (n == 3) break;
+		if (period_ms > 0) {
+		            vTaskDelayUntil(&LastWakeTime, pdMS_TO_TICKS(period_ms));
+		} else {
+			// Delay aleatório entre 1 e 1000 ms para dados aperiódicos
+			vTaskDelayUntil(&LastWakeTime, pdMS_TO_TICKS(rand() % 1000 + 1));
+		}
 		SD_data_t data = {
-			.value = {rand()%100,rand()%100,rand()%100},
+			.value = {rand() % 100, rand() % 100, rand() % 100},
 			.data_type = type,
 			.timestamp = LastWakeTime,
 			.array_size = array_size,
 		};
-
-		if(xQueueSend(SDcard_queue, (void*)&data, pdMS_TO_TICKS(period_ms)/2) != pdTRUE){
-			sprintf(buf, "fail send data to queue - %d\n", data.data_type);
-			USB_PRINT(buf);
+		for (i = 0; i < data_quantity; i++) {
+			if (xQueueSend(SDcard_queue, (void*)&data, pdMS_TO_TICKS(period_ms) / 2) != pdTRUE) {
+				sprintf(buf, "fail send data to queue - %d\n", data.data_type);
+				USB_PRINT(buf);
+			}
 		}
 		n++;
 	}
@@ -187,69 +199,16 @@ void send_data(void* arg){
 
 static bool start_send_data_tasks(void){
 	BaseType_t ret = pdTRUE;
-	uint32_t settings_in_bits = 0UL;
-
-	settings_in_bits = 0<<31; //1 element array
-	settings_in_bits += 1<<15; // time in ms
-	for(int i = 0; i < sizeof(one_1)/sizeof(one_1[0]); i++){
-	  settings_in_bits += one_1[i]; //type of data
-	  ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
-	  if(ret != pdPASS) return false;
-	  settings_in_bits = (settings_in_bits>>15)<<15;
+	for (int i = 0; i < sizeof(data_parameters) / sizeof(DataParameter); i++) {
+	    ret = xTaskCreate(send_data,
+				"send_data",
+				128 * 2,
+				(void *) &data_parameters[i],
+				25,
+				NULL);
+	    if (ret != pdPASS) return false;
 	}
 
-	settings_in_bits = 0<<31; //1 element array
-	settings_in_bits += 10<<15; // time in ms
-	for(int i = 0; i < sizeof(one_10)/sizeof(one_10[0]); i++){
-	  settings_in_bits += one_10[i]; //type of data
-	  ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
-	  if(ret != pdPASS) return false;
-	  settings_in_bits = (settings_in_bits>>15)<<15;
-	}
-
-	settings_in_bits = 0<<31; //1 element array
-	settings_in_bits += 100<<15; // time in ms
-	for(int i = 0; i < sizeof(one_100)/sizeof(one_100[0]); i++){
-	  settings_in_bits += one_100[i]; //type of data
-	  ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
-	  if(ret != pdPASS) return false;
-	  settings_in_bits = (settings_in_bits>>15)<<15;
-	}
-
-	settings_in_bits = 1<<31; //3 element array
-	settings_in_bits += 1<<15; // time in ms
-	for(int i = 0; i < sizeof(three_1)/sizeof(three_1[0]); i++){
-	  settings_in_bits += three_1[i]; //type of data
-	  ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
-	  if(ret != pdPASS) return false;
-	  settings_in_bits = (settings_in_bits>>15)<<15;
-	}
-	settings_in_bits = 1<<31; //3 element array
-	settings_in_bits += 10<<15; // time in ms
-	for(int i = 0; i < sizeof(three_10)/sizeof(three_10[0]); i++){
-	  settings_in_bits += three_10[i]; //type of data
-	  ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
-	  if(ret != pdPASS) return false;
-	  settings_in_bits = (settings_in_bits>>15)<<15;
-	}
-
-	settings_in_bits = 1<<31; //3 element array
-	settings_in_bits += 100<<15; // time in ms
-	for(int i = 0; i < sizeof(three_100)/sizeof(three_100[0]); i++){
-	  settings_in_bits += three_100[i]; //type of data
-	  ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
-	  if(ret != pdPASS) return false;
-	  settings_in_bits = (settings_in_bits>>15)<<15;
-	}
-
-	settings_in_bits = 1<<31; //3 element array
-	settings_in_bits += rand()%1000<<15; // time in ms
-	for(int i = 0; i < sizeof(three_ap)/sizeof(three_ap[0]); i++){
-	  settings_in_bits += three_ap[i]; //type of data
-	  ret = xTaskCreate(send_data, "send_data", 128*2, (void*)settings_in_bits, 25, NULL);
-	  if(ret != pdPASS) return false;
-	  settings_in_bits = (settings_in_bits>>15)<<15;
-	}
 	return true;
 }
 
